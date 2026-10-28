@@ -194,6 +194,9 @@ android {
         release {
             minifyEnabled false
             signingConfig signingConfigs.testkey
+            // Test build of the CN fixes: installs beside the store app and can be attached to.
+            applicationIdSuffix ".test"
+            debuggable true
         }
     }
 

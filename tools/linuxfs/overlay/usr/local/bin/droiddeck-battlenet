@@ -112,6 +112,20 @@ function field(text, name) {
   return m ? m[1] : "";
 }
 
+function object(text, name) {
+  var start = new RegExp('"' + name + '"\\s*:\\s*\\{').exec(text);
+  if (!start) return "";
+  var from = start.index + start[0].length, depth = 0;
+  for (var i = from - 1; i < text.length; i++) {
+    if (text.charAt(i) == "{") depth++;
+    else if (text.charAt(i) == "}" && --depth == 0) return text.substring(from, i);
+  }
+  return "";
+}
+
+var CHINA = {osi: "osic", s2: "s2_cn", anbs: "anbs_cn", diablo3: "d3cn"};
+var CHINA_PRODUCT = {osi: "osic", diablo3: "d3cn"};
+
 function install() {
   // Blizzard's China repository moved to cn.patch.battlenet.com.cn; cn.patch.battle.net only redirects away from it.
   var patch = zone == "cn" ? "cn.patch.battlenet.com.cn" : zone + ".patch.battle.net";
@@ -132,8 +146,8 @@ function watch(path) {
     var s = call("GET", path);
     save(".json", s);
     if (/"form"\s*:\s*\{/.test(s)) {
-      var dir = /"game_dir"\s*:\s*\{[\s\S]{0,400}?"error"\s*:\s*(\d+)/.exec(s);
-      if (dir && +dir[1] != 0) throw new Error(+dir[1] == 800 ? "the game folder already holds a game" : "Battle.net refused the game folder (error " + dir[1] + ")");
+      var refused = /"error"\s*:\s*(\d+)/.exec(object(s, "game_dir"));
+      if (refused && +refused[1] != 0) throw new Error(+refused[1] == 800 ? "the game folder already holds a game" : "Battle.net refused the game folder (error " + refused[1] + ")");
     } else if (/"error"\s*:\s*[1-9]/.test(s)) break;
     var state = /"state"\s*:\s*(\d+)/.exec(s.replace(/"extended_status"\s*:\s*\{[^}]*\}/, "")), complete = /"download_complete"\s*:\s*true/.test(s);
     state = state ? +state[1] : 0;
@@ -170,6 +184,13 @@ try {
   token = field(agent, "authorization");
   zone = field(agent, "region") || "us";
   if (!token) throw new Error("no authorization from the agent");
+  // The China client installs these under uids and products of its own; s2_cn and anbs_cn have no repository of their own.
+  if (zone == "cn" && action == "install" && CHINA[uid]) {
+    product = CHINA_PRODUCT[uid] || product;
+    uid = CHINA[uid];
+    country = "CHN";
+    region = "CN";
+  }
   if (action == "install") install(); else if (action == "update") update(); else uninstall();
 } catch (e) {
   save(".error", e.message || "the agent stopped answering");
